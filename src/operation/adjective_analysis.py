@@ -20,7 +20,7 @@ class AdjectiveAnalysisOperation(TextOperation):
 
     def execute(self, folder_path: Path, analyzer, plot_type: PlotType):
         adjective_types_by_year, all_adjective_types = self.process_files(folder_path, analyzer)
-        self.save_results(adjective_types_by_year, all_adjective_types)
+        self.save_results(adjective_types_by_year, all_adjective_types, plot_type)
 
     def process_file(self, file_path: Path, analyzer) -> tuple[dict, set]:
         text = self.file_handler.read_text_file(file_path)
@@ -61,7 +61,7 @@ class AdjectiveAnalysisOperation(TextOperation):
                                 all_adjective_types[adj_type].update(lemmas)
         return adjective_types_by_year, all_adjective_types
 
-    def save_results(self, adjective_types_by_year, all_adjective_types):
+    def save_results(self, adjective_types_by_year, all_adjective_types, plot_type: PlotType):
         data = [{"Лемма": lemma, "Тип": adj_type} for adj_type, lemmas in all_adjective_types.items() for lemma in sorted(lemmas)]
         self.file_handler.save_to_excel(
             pd.DataFrame(data),
@@ -77,3 +77,20 @@ class AdjectiveAnalysisOperation(TextOperation):
             pd.DataFrame(data),
             self.file_handler.results_dir / "adjective_type_percentages.xlsx"
         )
+
+        for adj_type in types:
+            percentages = [
+                round(adjective_types_by_year[year].get(adj_type, 0) / sum(adjective_types_by_year[year].values()) * 100, 2)
+                if sum(adjective_types_by_year[year].values()) > 0 else 0.0
+                for year in years
+            ]
+            output_path = self.file_handler.results_dir / f"{adj_type}_percentage_plot.png"
+            self.plotter.create_plot(
+                years=years,
+                values=percentages,
+                plot_type=plot_type,
+                title=f"Процент прилагательных '{adj_type}' по годам",
+                xlabel="Год",
+                ylabel="Процент (%)",
+                output_path=output_path
+            )
