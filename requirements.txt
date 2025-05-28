@@ -1,0 +1,8 @@
+pandas
+pymystem3
+pymorphy2
+nltk
+matplotlib
+requests
+beautifulsoup4
+lxml
