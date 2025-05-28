@@ -1,11 +1,12 @@
 from ...interface.adjective_analyzer import AdjectiveAnalyzer
+from .open_corpora_analyzer import OpenCorporaAdjectiveAnalyzer
 import pymorphy2
 import requests
 from bs4 import BeautifulSoup
 
 class WiktionaryAdjectiveAnalyzer(AdjectiveAnalyzer):
     def __init__(self):
-        self.morph = pymorphy2.MorphAnalyzer()
+        self.morph = OpenCorporaAdjectiveAnalyzer()
 
     def get_qualitative_or_relative(self, lemma: str) -> str:
         try:
@@ -16,15 +17,16 @@ class WiktionaryAdjectiveAnalyzer(AdjectiveAnalyzer):
             soup = BeautifulSoup(response.text, 'html.parser')
             content = soup.find('div', class_='mw-parser-output')
             if not content:
-                return "неизвестно"
+                return self.morph.get_qualitative_or_relative(lemma)
             text = content.get_text().lower()
-            if 'качественное' in text:
+            if 'качественное и относительное' in text or 'относительное и качественное' in text:
+                return "качественное и относительное"
+            elif 'качественное' in text:
                 return "качественное"
             elif 'относительное' in text:
                 return "относительное"
             else:
-                parsed = self.morph.parse(lemma)[0]
-                return "качественное" if 'Qual' in parsed.tag else "относительное"
+                return self.morph.get_qualitative_or_relative(lemma)
         except Exception as e:
             print(f"Error fetching Wiktionary for {lemma}: {e}")
-            return "неизвестно"
+            return self.morph.get_qualitative_or_relative(lemma)

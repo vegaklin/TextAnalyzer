@@ -10,11 +10,12 @@ class FileHandler:
     def read_text_file(self, file_path: Path) -> str:
         try:
             if file_path.suffix.lower() == ".txt":
-                with open(file_path, 'r', encoding='utf- exhibitions') as f:
+                with open(file_path, 'r', encoding='utf-8') as f:
                     return f.read()
             elif file_path.suffix.lower() == ".xml":
                 tree = ET.parse(file_path)
                 return ET.tostring(tree.getroot(), encoding='unicode', method='text')
+            print(f"Unsupported file format: {file_path}")
             return ""
         except Exception as e:
             print(f"Error reading {file_path}: {e}")

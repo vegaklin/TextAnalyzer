@@ -6,5 +6,8 @@ class OpenCorporaAdjectiveAnalyzer(AdjectiveAnalyzer):
         self.morph = pymorphy2.MorphAnalyzer()
 
     def get_qualitative_or_relative(self, lemma: str) -> str:
-        parsed = self.morph.parse(lemma)[0]
-        return "качественное" if 'Qual' in parsed.tag else "относительное"
+        parses = self.morph.parse(lemma)
+        for parsed in parses:
+            if 'Qual' in parsed.tag:
+                return "качественное"
+        return "относительное"

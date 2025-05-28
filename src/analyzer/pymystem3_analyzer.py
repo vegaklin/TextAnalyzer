@@ -5,18 +5,22 @@ from collections import defaultdict
 
 class Pymystem3Analyzer(MorphologicalAnalyzer):
     def __init__(self):
-        self.morph = Mystem(disambiguation=True)
         self.pos_regex = re.compile(r'^([A-Z]+)')
 
+    def get_new_morph(self):
+        return Mystem(disambiguation=True)
+
     def lemmatize(self, text: str):
-        analysis = self.morph.analyze(text)
+        morph = self.get_new_morph()
+        analysis = morph.analyze(text)
         return [
             (entry["text"], entry["analysis"][0]["lex"] if entry["analysis"] else entry["text"])
             for entry in analysis if "analysis" in entry
         ]
 
     def count_grammems(self, text: str):
-        analysis = self.morph.analyze(text)
+        morph = self.get_new_morph()
+        analysis = morph.analyze(text)
         grammems_count = {}
         for entry in analysis:
             if "analysis" in entry:
@@ -30,7 +34,8 @@ class Pymystem3Analyzer(MorphologicalAnalyzer):
         return grammems_count
 
     def count_grammems_lemmas(self, text: str):
-        analysis = self.morph.analyze(text)
+        morph = self.get_new_morph()
+        analysis = morph.analyze(text)
         grammems_count = defaultdict(dict)
         for entry in analysis:
             if "analysis" in entry:

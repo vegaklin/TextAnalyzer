@@ -32,7 +32,7 @@ class TextAnalyzerApp:
             return POSWordCountOperation(self.file_handler, self.plotter)
         elif choice == "4":
             adjective_analyzer = self.select_adjective_analyzer()
-            return AdjectiveAnalysisOperation(self.file_handler, adjective_analyzer)
+            return AdjectiveAnalysisOperation(self.file_handler, self.plotter, adjective_analyzer)
         else:
             raise ValueError("Invalid operation choice")
 
@@ -82,8 +82,8 @@ class TextAnalyzerApp:
         try:
             operation = self.select_operation()
             analyzer = self.select_analyzer()
-            folder_path = self.get_folder_path()
             plot_type = self.select_plot_type()
+            folder_path = self.get_folder_path()
             operation.execute(folder_path, analyzer, plot_type)
             print("Обработка завершена.")
         except Exception as e:
