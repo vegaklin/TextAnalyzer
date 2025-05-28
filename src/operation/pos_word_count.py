@@ -12,13 +12,13 @@ class POSWordCountOperation(TextOperation):
     def __init__(self, file_handler: FileHandler, plotter: Plotter):
         self.file_handler = file_handler
         self.plotter = plotter
+        self.max_workers = 8
         self.lock = Lock()
 
     def execute(self, folder_path: Path, analyzer, plot_type: PlotType):
         word_counts_by_year = self.process_files(folder_path, analyzer)
         word_counts = LemmatizationOperation(self.file_handler, self.plotter).process_files(folder_path, analyzer)
         self.save_results(word_counts_by_year, word_counts)
-        return word_counts_by_year
 
     def process_file(self, file_path: Path, analyzer) -> dict:
         text = self.file_handler.read_text_file(file_path)
@@ -27,14 +27,12 @@ class POSWordCountOperation(TextOperation):
 
     def process_files(self, folder_path: Path, analyzer):
         word_counts_by_year = {}
-        max_workers = 8
-
         for year_folder in folder_path.iterdir():
             if year_folder.is_dir():
                 year = year_folder.name
                 word_counts_by_year[year] = {}
                 files = list(year_folder.glob("*.txt")) + list(year_folder.glob("*.xml"))
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                     futures = [
                         executor.submit(self.process_file, file_path, analyzer)
                         for file_path in files
@@ -47,7 +45,6 @@ class POSWordCountOperation(TextOperation):
                                     word_counts_by_year[year][grammem] = {}
                                 for lemma, count in lemma_counts.items():
                                     word_counts_by_year[year][grammem][lemma] = word_counts_by_year[year][grammem].get(lemma, 0) + count
-
         return word_counts_by_year
 
 

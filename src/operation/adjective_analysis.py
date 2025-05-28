@@ -15,12 +15,12 @@ class AdjectiveAnalysisOperation(TextOperation):
         self.file_handler = file_handler
         self.plotter = plotter
         self.adjective_analyzer = adjective_analyzer
+        self.max_workers = 8
         self.lock = Lock()
 
     def execute(self, folder_path: Path, analyzer, plot_type: PlotType):
         adjective_types_by_year, all_adjective_types = self.process_files(folder_path, analyzer)
         self.save_results(adjective_types_by_year, all_adjective_types)
-        return adjective_types_by_year
 
     def process_file(self, file_path: Path, analyzer) -> tuple[dict, set]:
         text = self.file_handler.read_text_file(file_path)
@@ -42,14 +42,12 @@ class AdjectiveAnalysisOperation(TextOperation):
     def process_files(self, folder_path: Path, analyzer):
         adjective_types_by_year = {}
         all_adjective_types = defaultdict(set)
-        max_workers = 8 
-
         for year_folder in folder_path.iterdir():
             if year_folder.is_dir():
                 year = year_folder.name
                 adjective_types_by_year[year] = {}
                 files = list(year_folder.glob("*.txt")) + list(year_folder.glob("*.xml"))
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                     futures = [
                         executor.submit(self.process_file, file_path, analyzer)
                         for file_path in files

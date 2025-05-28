@@ -1,6 +1,6 @@
 from .util.file_handler import FileHandler
 from .util.plotter import Plotter
-from .model.enums import AnalyzerChoice, AdjectiveAnalyzerChoice, PlotType
+from .model.enums import PlotType
 from .operation.lemmatization import LemmatizationOperation
 from .operation.pos_count import POSCountOperation
 from .operation.pos_word_count import POSWordCountOperation
