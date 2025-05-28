@@ -42,7 +42,6 @@ class POSCountOperation(TextOperation):
                         with self.lock:
                             for grammem, count in grammems.items():
                                 pos_counts_by_year[year][grammem] = pos_counts_by_year[year].get(grammem, 0) + count
-
         return pos_counts_by_year
 
     def save_results(self, pos_counts_by_year, word_counts, plot_type: PlotType):
@@ -50,6 +49,8 @@ class POSCountOperation(TextOperation):
         for year in pos_counts_by_year:
             all_grammems.update(pos_counts_by_year[year].keys())
         for grammem in all_grammems:
+            grammem_dir = self.file_handler.results_dir / grammem
+            grammem_dir.mkdir(exist_ok=True)
             years = sorted(pos_counts_by_year.keys())
             counts = [pos_counts_by_year[year].get(grammem, 0) for year in years]
             frequencies = [
@@ -61,9 +62,9 @@ class POSCountOperation(TextOperation):
                 f"Количество {grammem}": counts,
                 f"Процент {grammem}": frequencies
             })
-            self.file_handler.save_to_excel(df, self.file_handler.results_dir / f"{grammem}_counts.xlsx")
+            self.file_handler.save_to_excel(df, grammem_dir / f"{grammem}_counts.xlsx")
             self.plotter.create_plot(
                 years, frequencies, plot_type,
                 f"Процент слов для {grammem}", "Год", "Процент",
-                self.file_handler.results_dir / f"{grammem}_plot.png"
+                grammem_dir / f"{grammem}_plot.png"
             )

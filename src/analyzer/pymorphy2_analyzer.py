@@ -10,12 +10,12 @@ class Pymorphy2Analyzer(MorphologicalAnalyzer):
 
     def lemmatize(self, text: str):
         tokens = self.tokenizer.tokenize(text)
-        tokens = [token for token in tokens if not token.isdigit()]
+        tokens = [token for token in tokens if not (token.isdigit() or token == '-')]
         return [(token, self.morph.parse(token)[0].normal_form) for token in tokens]
 
     def count_grammems(self, text: str):
         tokens = self.tokenizer.tokenize(text)
-        tokens = [token for token in tokens if not token.isdigit()]
+        tokens = [token for token in tokens if not (token.isdigit() or token == '-')]
         grammems_count = {}
         for token in tokens:
             parsed = self.morph.parse(token)[0]
@@ -25,7 +25,7 @@ class Pymorphy2Analyzer(MorphologicalAnalyzer):
 
     def count_grammems_lemmas(self, text: str):
         tokens = self.tokenizer.tokenize(text)
-        tokens = [token for token in tokens if not token.isdigit()]
+        tokens = [token for token in tokens if not (token.isdigit() or token == '-')]
         grammems_count = defaultdict(dict)
         for token in tokens:
             parsed = self.morph.parse(token)[0]
