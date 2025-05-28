@@ -19,6 +19,7 @@ class POSWordCountOperation(TextOperation):
         word_counts_by_year = self.process_files(folder_path, analyzer)
         word_counts = LemmatizationOperation(self.file_handler, self.plotter).process_files(folder_path, analyzer)
         self.save_results(word_counts_by_year, word_counts)
+        self.interactive_for_words(word_counts_by_year, word_counts, plot_type)
 
     def process_file(self, file_path: Path, analyzer) -> dict:
         text = self.file_handler.read_text_file(file_path)
@@ -67,3 +68,44 @@ class POSWordCountOperation(TextOperation):
                 pd.DataFrame(data),
                 grammem_dir / f"{grammem}_frequencies.xlsx"
             )
+
+    def interactive_for_words(self, word_counts_by_year, word_counts, plot_type: PlotType):
+        print("Результаты сохранены. Доступен разбор для каждого слова:")
+        all_grammems = set()
+        for year in word_counts_by_year:
+            all_grammems.update(word_counts_by_year[year].keys())
+        while True:
+            print("\nДоступные части речи:", ", ".join(sorted(all_grammems)))
+            grammem = input("Введите часть речи (или 'q' для выхода): ").strip()
+            if grammem.lower() == 'q':
+                break
+            if grammem not in all_grammems:
+                print("Ошибка: указанная часть речи не найдена.")
+                continue
+
+            available_lemmas = set()
+            for year in word_counts_by_year:
+                available_lemmas.update(word_counts_by_year[year].get(grammem, {}).keys())
+            print(f"Доступные леммы для {grammem} (первые 10):", ", ".join(sorted(available_lemmas)[:10]), "...")
+            lemma = input("Введите слово (лемму): ").strip().lower()
+            if lemma not in available_lemmas:
+                print("Ошибка: указанная лемма не найдена для данной части речи.")
+                continue
+            years = sorted(word_counts_by_year.keys())
+            frequencies = [
+                round(word_counts_by_year[year].get(grammem, {}).get(lemma, 0) / word_counts.get(year, 1) * 1_000_000, 5)
+                if word_counts.get(year, 1) > 0 else 0.0
+                for year in years
+            ]
+
+            output_path = self.file_handler.results_dir / f"{grammem}_{lemma}_frequency_plot.png"
+            self.plotter.create_plot(
+                years=years,
+                values=frequencies,
+                plot_type=plot_type,
+                title=f"Частота леммы '{lemma}' ({grammem}) по годам",
+                xlabel="Год",
+                ylabel="Частота (IPM)",
+                output_path=output_path
+            )
+            print(f"График сохранён: {output_path}")
