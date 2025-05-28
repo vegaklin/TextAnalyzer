@@ -5,11 +5,14 @@ from ..model.enums import PlotType
 from .lemmatization import LemmatizationOperation
 from pathlib import Path
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 class POSCountOperation(TextOperation):
     def __init__(self, file_handler: FileHandler, plotter: Plotter):
         self.file_handler = file_handler
         self.plotter = plotter
+        self.lock = Lock()
 
     def execute(self, folder_path: Path, analyzer, plot_type: PlotType):
         pos_counts_by_year = self.process_files(folder_path, analyzer)
@@ -17,17 +20,31 @@ class POSCountOperation(TextOperation):
         self.save_results(pos_counts_by_year, word_counts, plot_type)
         return pos_counts_by_year
 
+    def process_file(self, file_path: Path, analyzer) -> dict:
+        text = self.file_handler.read_text_file(file_path)
+        grammems = analyzer.count_grammems(text)
+        return grammems
+
     def process_files(self, folder_path: Path, analyzer):
         pos_counts_by_year = {}
+        max_workers = 8
+
         for year_folder in folder_path.iterdir():
             if year_folder.is_dir():
                 year = year_folder.name
                 pos_counts_by_year[year] = {}
-                for file_path in list(year_folder.glob("*.txt")) + list(year_folder.glob("*.xml")):
-                    text = self.file_handler.read_text_file(file_path)
-                    grammems = analyzer.count_grammems(text)
-                    for grammem, count in grammems.items():
-                        pos_counts_by_year[year][grammem] = pos_counts_by_year[year].get(grammem, 0) + count
+                files = list(year_folder.glob("*.txt")) + list(year_folder.glob("*.xml"))
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = [
+                        executor.submit(self.process_file, file_path, analyzer)
+                        for file_path in files
+                    ]
+                    for future in futures:
+                        grammems = future.result()
+                        with self.lock:
+                            for grammem, count in grammems.items():
+                                pos_counts_by_year[year][grammem] = pos_counts_by_year[year].get(grammem, 0) + count
+
         return pos_counts_by_year
 
     def save_results(self, pos_counts_by_year, word_counts, plot_type: PlotType):
