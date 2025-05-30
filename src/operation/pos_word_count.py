@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
+from typing import List, Tuple
 
 class POSWordCountOperation(TextOperation):
     def __init__(self, file_handler: FileHandler, plotter: Plotter):
@@ -15,9 +16,9 @@ class POSWordCountOperation(TextOperation):
         self.max_workers = 8
         self.lock = Lock()
 
-    def execute(self, folder_path: Path, analyzer, plot_type: PlotType):
-        word_counts_by_year = self.process_files(folder_path, analyzer)
-        word_counts = LemmatizationOperation(self.file_handler, self.plotter).process_files(folder_path, analyzer)
+    def execute(self,periods: List[Tuple[str, str]], folder_path: Path, analyzer, plot_type: PlotType):
+        word_counts_by_year = self.process_files(periods, folder_path, analyzer)
+        word_counts = LemmatizationOperation(self.file_handler, self.plotter).process_files(periods, folder_path, analyzer)
         self.save_results(word_counts_by_year, word_counts)
         self.interactive_for_words(word_counts_by_year, word_counts, plot_type)
 
@@ -26,26 +27,29 @@ class POSWordCountOperation(TextOperation):
         grammems = analyzer.count_grammems_lemmas(text)
         return grammems
 
-    def process_files(self, folder_path: Path, analyzer):
+    def process_files(self, periods: List[Tuple[str, str]],  folder_path: Path, analyzer):
         word_counts_by_year = {}
-        for year_folder in folder_path.iterdir():
-            if year_folder.is_dir():
-                year = year_folder.name
-                word_counts_by_year[year] = {}
-                files = list(year_folder.glob("*.txt")) + list(year_folder.glob("*.xml"))
-                with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                    futures = [
-                        executor.submit(self.process_file, file_path, analyzer)
-                        for file_path in files
-                    ]
-                    for future in futures:
-                        grammems = future.result()
-                        with self.lock:
-                            for grammem, lemma_counts in grammems.items():
-                                if grammem not in word_counts_by_year[year]:
-                                    word_counts_by_year[year][grammem] = {}
-                                for lemma, count in lemma_counts.items():
-                                    word_counts_by_year[year][grammem][lemma] = word_counts_by_year[year][grammem].get(lemma, 0) + count
+        for start, end in periods:
+            period_key = (start, end)
+            word_counts_by_year[period_key] = {}
+            files = []
+            for year in range(int(start), int(end) + 1):
+                year_folder = folder_path / str(year)
+                if year_folder.is_dir():
+                    files.extend(list(year_folder.glob("*.txt")) + list(year_folder.glob("*.xml")))
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = [
+                    executor.submit(self.process_file, file_path, analyzer)
+                    for file_path in files
+                ]
+                for future in futures:
+                    grammems = future.result()
+                    with self.lock:
+                        for grammem, lemma_counts in grammems.items():
+                            if grammem not in word_counts_by_year[period_key]:
+                                word_counts_by_year[period_key][grammem] = {}
+                            for lemma, count in lemma_counts.items():
+                                word_counts_by_year[period_key][grammem][lemma] = word_counts_by_year[period_key][grammem].get(lemma, 0) + count
         return word_counts_by_year
 
 
@@ -56,19 +60,28 @@ class POSWordCountOperation(TextOperation):
         for grammem in all_grammems:
             grammem_dir = self.file_handler.results_dir / grammem
             grammem_dir.mkdir(exist_ok=True)
-            years = sorted(word_counts_by_year.keys())
+            periods = sorted(word_counts_by_year.keys(), key=lambda x: x[0])
+            period_labels = [f"{start}-{end}" if start != end else start for start, end in periods]
             all_lemmas = set()
-            for year in years:
-                all_lemmas.update(word_counts_by_year[year].get(grammem, {}).keys())
+            for period in periods:
+                all_lemmas.update(word_counts_by_year[period].get(grammem, {}).keys())
             data = [
-                {"Лемма": lemma, **{year: round(word_counts_by_year[year].get(grammem, {}).get(lemma, 0) / word_counts.get(year, 1) * 1_000_000, 5) if word_counts.get(year, 1) > 0 else 0.0 for year in years}}
+                {
+                    "Лемма": lemma,
+                    **{
+                        period_labels[i]: round(
+                            word_counts_by_year[period].get(grammem, {}).get(lemma, 0) / word_counts.get(period, 1) * 1_000_000, 5
+                        ) if word_counts.get(period, 1) > 0 else 0.0
+                        for i, period in enumerate(periods)
+                    }
+                }
                 for lemma in all_lemmas
             ]
             self.file_handler.save_to_excel(
                 pd.DataFrame(data),
                 grammem_dir / f"{grammem}_frequencies.xlsx"
             )
-
+            
     def interactive_for_words(self, word_counts_by_year, word_counts, plot_type: PlotType):
         print("Результаты сохранены. Доступен разбор для каждого слова:")
         all_grammems = set()
@@ -84,28 +97,27 @@ class POSWordCountOperation(TextOperation):
                 continue
 
             available_lemmas = set()
-            for year in word_counts_by_year:
-                available_lemmas.update(word_counts_by_year[year].get(grammem, {}).keys())
+            for period in word_counts_by_year:
+                available_lemmas.update(word_counts_by_year[period].get(grammem, {}).keys())
             print(f"Доступные леммы для {grammem} (первые 10):", ", ".join(sorted(available_lemmas)[:10]), "...")
             lemma = input("Введите слово (лемму): ").strip().lower()
             if lemma not in available_lemmas:
                 print("Ошибка: указанная лемма не найдена для данной части речи.")
                 continue
-            years = sorted(word_counts_by_year.keys())
+
+            periods = sorted(word_counts_by_year.keys(), key=lambda x: x[0])
+            period_labels = [f"{start}-{end}" if start != end else start for start, end in periods]
             frequencies = [
-                round(word_counts_by_year[year].get(grammem, {}).get(lemma, 0) / word_counts.get(year, 1) * 1_000_000, 5)
-                if word_counts.get(year, 1) > 0 else 0.0
-                for year in years
+                round(word_counts_by_year[period].get(grammem, {}).get(lemma, 0) / word_counts.get(period, 1) * 1_000_000, 5)
+                if word_counts.get(period, 1) > 0 else 0.0
+                for period in periods
             ]
 
             output_path = self.file_handler.results_dir / f"{grammem}_{lemma}_frequency_plot.png"
             self.plotter.create_plot(
-                years=years,
-                values=frequencies,
-                plot_type=plot_type,
-                title=f"Частота леммы '{lemma}' ({grammem}) по годам",
-                xlabel="Год",
-                ylabel="Частота (IPM)",
-                output_path=output_path
+                period_labels, frequencies, PlotType.LINE,
+                f"Частота леммы '{lemma}' ({grammem}) по периодам",
+                "Период", "Частота (IPM)",
+                output_path
             )
             print(f"График сохранён: {output_path}")

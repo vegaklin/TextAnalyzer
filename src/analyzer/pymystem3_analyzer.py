@@ -8,7 +8,7 @@ class Pymystem3Analyzer(MorphologicalAnalyzer):
         self.pos_regex = re.compile(r'^([A-Z]+)')
 
     def get_new_morph(self):
-        return Mystem(disambiguation=True)
+        return Mystem()
 
     def lemmatize(self, text: str):
         morph = self.get_new_morph()
